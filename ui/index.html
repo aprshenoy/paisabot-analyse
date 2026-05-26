@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title id="page-title">Stock Analysis · annaPaisa</title>
+  <meta name="theme-color" content="#0F1E33">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,700&display=swap">
+  <link rel="stylesheet" href="stock_analysis.css">
+  <style>
+    /* ── STOCK PICKER BAR ─────────────────────────────────────────────── */
+    .sa-picker-bar {
+      background: #0A1626;
+      border-bottom: 1px solid #1E3050;
+      position: sticky; top: 0; z-index: 200;
+      padding: 10px 24px;
+    }
+    .sa-picker-inner {
+      max-width: 1320px; margin: 0 auto;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .sa-logo {
+      font-family: 'Source Serif 4', serif;
+      font-size: 18px; font-weight: 700;
+      color: #C4820A; letter-spacing: -.02em;
+      white-space: nowrap; flex-shrink: 0;
+      text-decoration: none;
+    }
+    .sa-logo em { font-style: italic; }
+    .sa-search-wrap {
+      flex: 1; max-width: 420px;
+      position: relative;
+    }
+    .sa-search-input {
+      width: 100%;
+      background: #111F35;
+      border: 1px solid #1E3050;
+      border-radius: 6px;
+      padding: 9px 14px 9px 36px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 500;
+      color: #E2E8F0;
+      outline: none;
+      transition: border-color 120ms;
+    }
+    .sa-search-input::placeholder { color: #64748B; }
+    .sa-search-input:focus { border-color: #C4820A; }
+    .sa-search-icon {
+      position: absolute; left: 11px; top: 50%;
+      transform: translateY(-50%);
+      color: #64748B; pointer-events: none;
+    }
+    .sa-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: #111F35;
+      border: 1px solid #1E3050;
+      border-radius: 8px;
+      max-height: 320px; overflow-y: auto;
+      z-index: 300;
+      display: none;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+    }
+    .sa-dropdown.open { display: block; }
+    .sa-dropdown-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center; gap: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: background 100ms;
+      border-bottom: 1px solid #1E3050;
+    }
+    .sa-dropdown-item:last-child { border-bottom: 0; }
+    .sa-dropdown-item:hover { background: #16263F; }
+    .sa-dropdown-sym {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px; font-weight: 700; color: #fff;
+      min-width: 80px;
+    }
+    .sa-dropdown-name { font-size: 12px; color: #94A3B8; }
+    .sa-dropdown-sector {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: #64748B;
+    }
+    .sa-picker-tagline {
+      font-size: 12px; color: #475569;
+      margin-left: auto; white-space: nowrap;
+      display: none;
+    }
+    @media (min-width: 900px) { .sa-picker-tagline { display: block; } }
+
+    /* ── LOADING / ERROR STATES ───────────────────────────────────────── */
+    #sa-loading, #sa-error {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 60vh; gap: 16px;
+      font-family: 'Inter', sans-serif; color: #94A3B8;
+    }
+    #sa-error { display: none; }
+    .sa-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #1E3050;
+      border-top-color: #C4820A;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── CHART CONTAINERS (TradingView needs a div, not canvas) ───────── */
+    .sa-tv-chart {
+      width: 100%; height: 100%;
+      position: relative;
+    }
+    /* Remove SVG placeholders when chart loads */
+    .sa-chart-canvas svg.placeholder { display: none !important; }
+
+    /* ── NEWS CARD LINK WRAPPING ──────────────────────────────────────── */
+    .sa-news-link {
+      display: flex; flex-direction: column; flex: 1;
+      text-decoration: none; color: inherit;
+    }
+
+    /* ── LAST UPDATED BAR ─────────────────────────────────────────────── */
+    .sa-updated-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; color: #64748B;
+      border-top: 1px solid #1E3050;
+      margin-top: 8px;
+    }
+    .sa-updated-bar .sa-live-dot { width: 5px; height: 5px; flex-shrink: 0; }
+
+    /* ── BACK BUTTON ──────────────────────────────────────────────────── */
+    .sa-back-btn {
+      display: none; align-items: center; gap: 6px;
+      background: #111F35; border: 1px solid #1E3050;
+      border-radius: 6px; padding: 7px 12px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+      color: #94A3B8; cursor: pointer; text-decoration: none;
+      white-space: nowrap; flex-shrink: 0;
+      transition: border-color 120ms, color 120ms;
+    }
+    .sa-back-btn:hover { border-color: #C4820A; color: #E2E8F0; }
+    .sa-back-btn.visible { display: flex; }
+
+    /* ── ADVANCED CHART SECTION ───────────────────────────────────────── */
+    .sa-adv-chart-section {
+      margin: 24px 0;
+    }
+    .sa-adv-chart-card {
+      background: var(--sa-bg-2);
+      border: 1px solid var(--sa-border-2);
+      border-radius: var(--sa-r-sm);
+      overflow: hidden;
+    }
+    .sa-adv-chart-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px 0;
+    }
+    .sa-adv-chart-hd-left { display: flex; flex-direction: column; gap: 2px; }
+    .sa-adv-chart-title { font-size: 13px; font-weight: 700; color: #E2E8F0; }
+    .sa-adv-chart-subtitle { font-size: 11px; color: #64748B; font-family: 'JetBrains Mono', monospace; }
+    .sa-adv-chart-legend {
+      display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 18px 14px;
+      border-top: 1px solid var(--sa-border);
+    }
+
+    /* ── OSCILLATOR ROW ───────────────────────────────────────────────── */
+    .sa-osc-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 0 0 24px;
+    }
+    @media (max-width: 900px) { .sa-osc-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="sa-page">
+
+<!-- ════════ STOCK PICKER BAR ════════ -->
+<div class="sa-picker-bar">
+  <div class="sa-picker-inner">
+    <a href="/" class="sa-logo"><em>annaPaisa</em></a>
+    <a id="sa-back-btn" class="sa-back-btn" href="#">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      <span id="sa-back-label">Back</span>
+    </a>
+    <div class="sa-search-wrap">
+      <svg class="sa-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" class="sa-search-input" id="stock-search" placeholder="Search ticker or company…" autocomplete="off" spellcheck="false">
+      <div class="sa-dropdown" id="stock-dropdown"></div>
+    </div>
+    <span class="sa-picker-tagline">NSE · BSE · Powered by annaPaisa</span>
+  </div>
+</div>
+
+<!-- ════════ LOADING ════════ -->
+<div id="sa-loading">
+  <div class="sa-spinner"></div>
+  <span>Loading stock data…</span>
+</div>
+
+<!-- ════════ ERROR ════════ -->
+<div id="sa-error">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  <span id="sa-error-msg">Unable to load stock data.</span>
+  <button onclick="location.reload()" style="margin-top:8px;padding:8px 20px;background:#C4820A;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer">Retry</button>
+</div>
+
+<!-- ════════ MAIN CONTENT ════════ -->
+<div id="sa-content" style="display:none">
+
+  <!-- ═══ SECTION 1 — STOCK HERO BAR (sticky) ═══ -->
+  <section class="sa-hero" aria-label="Stock summary">
+    <div class="sa-wrap">
+      <div class="sa-hero-inner">
+        <div>
+          <div class="sa-hero-left">
+            <span class="sa-stock-badge">
+              <span class="sa-stock-symbol" id="h-symbol">—</span>
+              <span class="sa-stock-exchange" id="h-exchange">NSE</span>
+            </span>
+            <span class="sa-stock-name" id="h-name">—</span>
+          </div>
+          <div class="sa-price-row" style="margin-top:12px">
+            <span class="sa-price sa-num" id="h-price">—</span>
+            <span class="sa-change" id="h-change">—</span>
+          </div>
+          <div class="sa-hero-meta">
+            <div><span class="label">Volume</span><span class="value" id="h-volume">—</span></div>
+            <div><span class="label">Market Cap</span><span class="value" id="h-mcap">—</span></div>
+            <div><span class="label">Today's Range</span><span class="value" id="h-range">—</span></div>
+            <div><span class="label">52W Range</span><span class="value" id="h-52w">—</span></div>
+          </div>
+        </div>
+        <div class="sa-hero-right">
+          <div class="sa-update-time" id="h-livetime">
+            <span class="sa-live-dot"></span>
+            <span id="h-livetime-text">NSE Closed</span>
+          </div>
+          <div class="sa-actions">
+            <button class="sa-btn sa-btn-secondary" onclick="shareStock()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-4"/><polyline points="9 6 12 3 15 6"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Share
+            </button>
+            <button class="sa-btn sa-btn-primary" onclick="alert('Alerts coming soon!')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Set Alert
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="sa-timeframe-row">
+        <div class="sa-tabs" role="tablist" aria-label="Timeframe">
+          <button class="sa-tab active" data-tf="1D">1D</button>
+          <button class="sa-tab" data-tf="5D">5D</button>
+          <button class="sa-tab" data-tf="21D">21D</button>
+          <button class="sa-tab" data-tf="1M">1M</button>
+          <button class="sa-tab" data-tf="3M">3M</button>
+          <button class="sa-tab" data-tf="1Y">1Y</button>
+        </div>
+        <div class="sa-updated-bar">
+          <span class="sa-live-dot" style="background:#C4820A;animation:sa-pulse 2s ease-in-out infinite"></span>
+          Last updated: <span id="h-last-updated">—</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sa-wrap">
+
+    <!-- ═══ SECTION 2 — THREE PERFORMANCE CHARTS ═══ -->
+    <section class="sa-charts-row" aria-label="Performance charts">
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">Today's Intraday</span>
+            <span class="sa-chart-tf-badge">1D · 5-min candles</span>
+          </div>
+          <span class="sa-chart-return" id="ret-1d">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-1d" style="height:300px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#16A34A"></span> Price</span>
+          <span class="leg"><span class="sw dashed" style="color:#475569"></span> Open ref.</span>
+          <span class="leg"><span class="sw" style="background:#475569"></span> Volume</span>
+        </div>
+      </article>
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">This Week</span>
+            <span class="sa-chart-tf-badge">5D · OHLC Candles</span>
+          </div>
+          <span class="sa-chart-return" id="ret-5d">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-5d" style="height:300px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#16A34A"></span> Bull candle</span>
+          <span class="leg"><span class="sw" style="background:#DC2626"></span> Bear candle</span>
+          <span class="leg" style="color:var(--sa-fg-muted)">Wick = day range</span>
+        </div>
+      </article>
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">21-Day Trend</span>
+            <span class="sa-chart-tf-badge">21D · 9 &amp; 21 EMA</span>
+          </div>
+          <span class="sa-chart-return" id="ret-21d">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-21d" style="height:300px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#C4820A"></span> Price</span>
+          <span class="leg" style="color:#3B82F6"><span class="sw" style="background:#3B82F6"></span> 9 EMA</span>
+          <span class="leg" style="color:#94A3B8"><span class="sw" style="background:#94A3B8"></span> 21 EMA</span>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- ═══ SECTION 3 — DATA GRID: OHLCV + KEY METRICS ═══ -->
+    <section class="sa-data-row" aria-label="OHLCV and key metrics">
+
+      <article class="sa-card">
+        <header class="sa-card-hd">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--sa-amber-2)"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> OHLCV</h3>
+          <span class="sa-card-date" id="ohlcv-date">—</span>
+        </header>
+        <div class="sa-ohlcv-list">
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">Open</span><span class="sa-ohlcv-value sa-num" id="d-open">—</span><span></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">High</span><span class="sa-ohlcv-value sa-num" id="d-high">—</span><span class="badge-up" id="d-high-diff"></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">Low</span><span class="sa-ohlcv-value sa-num" id="d-low">—</span><span class="badge-down" id="d-low-diff"></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">Close</span><span class="sa-ohlcv-value sa-num" id="d-close" style="color:#fff">—</span><span class="badge-up" id="d-chg-badge"></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">Volume</span><span class="sa-ohlcv-value sa-num" id="d-volume">—</span><span></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">Value</span><span class="sa-ohlcv-value sa-num" id="d-value">—</span><span></span></div>
+          <div class="sa-ohlcv-row"><span class="sa-ohlcv-label">VWAP</span><span class="sa-ohlcv-value sa-num" id="d-vwap">—</span><span id="d-vwap-rel" style="font-family:var(--sa-font-mono);font-size:11px"></span></div>
+        </div>
+      </article>
+
+      <article class="sa-card">
+        <header class="sa-card-hd">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--sa-amber-2)"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> Key Metrics</h3>
+          <span class="sa-card-date">Fundamentals · TTM</span>
+        </header>
+        <div class="sa-metrics-grid">
+          <div class="sa-metric"><span class="label">52W High</span><span class="value" id="m-52h">—</span></div>
+          <div class="sa-metric"><span class="label">52W Low</span><span class="value" id="m-52l">—</span></div>
+          <div class="sa-metric"><span class="label">P/E Ratio</span><span class="value" id="m-pe">—</span></div>
+          <div class="sa-metric"><span class="label">EPS (TTM)</span><span class="value" id="m-eps">—</span></div>
+          <div class="sa-metric"><span class="label">Market Cap</span><span class="value" id="m-mcap">—</span></div>
+          <div class="sa-metric"><span class="label">Beta</span><span class="value" id="m-beta">—</span></div>
+          <div class="sa-metric"><span class="label">Div Yield</span><span class="value" id="m-div">—</span></div>
+          <div class="sa-metric"><span class="label">Delivery %</span><span class="value" id="m-del">—</span></div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- ═══ SECTION 4 — TECHNICAL ANALYSIS ═══ -->
+    <section class="sa-tech-row" aria-label="Technical analysis">
+
+      <article class="sa-card">
+        <header class="sa-card-hd">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--sa-amber-2)"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg> Support &amp; Resistance</h3>
+          <span class="sa-card-date">Pivot Levels</span>
+        </header>
+        <div class="sa-sr-ladder" id="sr-ladder"><!-- JS --></div>
+        <div class="sa-pivot-toggle" role="tablist">
+          <button class="active" data-pivot="classic">Classic</button>
+          <button data-pivot="fib">Fibonacci</button>
+          <button data-pivot="camarilla">Camarilla</button>
+        </div>
+      </article>
+
+      <article class="sa-card">
+        <header class="sa-card-hd">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--sa-amber-2)"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Moving Averages</h3>
+          <span class="sa-card-date" id="ma-summary">—</span>
+        </header>
+        <div class="sa-ma-table" id="ma-table"><!-- JS --></div>
+        <div class="sa-overall-signal" id="ma-signal"></div>
+      </article>
+
+      <article class="sa-card">
+        <header class="sa-card-hd">
+          <h3><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="color:var(--sa-amber-2)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Momentum</h3>
+          <span class="sa-card-date" id="mom-summary">—</span>
+        </header>
+        <div class="sa-mi-grid" id="mom-grid"><!-- JS --></div>
+      </article>
+
+    </section>
+
+    <!-- ═══ SECTION 5 — BREAKOUT & PATTERN ALERTS ═══ -->
+    <section class="sa-alerts-row" id="alerts-row" aria-label="Pattern alerts"><!-- JS --></section>
+
+    <!-- ═══ SECTION 5b — ADVANCED TECHNICAL CHART ═══ -->
+    <section class="sa-adv-chart-section" aria-label="Advanced technical chart">
+      <div class="sa-adv-chart-card">
+        <div class="sa-adv-chart-hd">
+          <div class="sa-adv-chart-hd-left">
+            <span class="sa-adv-chart-title">Advanced Technical Chart</span>
+            <span class="sa-adv-chart-subtitle">Candlestick · Bollinger Bands (20,2) · EMA 9/21/50 · S&amp;R Levels · Volume</span>
+          </div>
+          <span class="sa-chart-return" id="ret-adv">—</span>
+        </div>
+        <div id="chart-adv" style="height:420px;width:100%"></div>
+        <div class="sa-adv-chart-legend">
+          <span class="leg"><span class="sw" style="background:#16A34A"></span> Bull</span>
+          <span class="leg"><span class="sw" style="background:#DC2626"></span> Bear</span>
+          <span class="leg"><span class="sw" style="background:#3B82F6"></span> BB Upper/Lower</span>
+          <span class="leg"><span class="sw" style="background:#94A3B8"></span> BB Mid (SMA20)</span>
+          <span class="leg"><span class="sw" style="background:#60A5FA"></span> EMA 9</span>
+          <span class="leg"><span class="sw" style="background:#94A3B8"></span> EMA 21</span>
+          <span class="leg"><span class="sw" style="background:#C4820A"></span> EMA 50</span>
+          <span class="leg" style="color:#DC2626">— R1/R2/R3</span>
+          <span class="leg" style="color:#16A34A">— S1/S2/S3</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SECTION 5c — OSCILLATORS ROW ═══ -->
+    <section class="sa-osc-row" aria-label="Oscillators">
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">MACD</span>
+            <span class="sa-chart-tf-badge">12 · 26 · 9</span>
+          </div>
+          <span class="sa-chart-return" id="ret-macd">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-macd" style="height:200px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#16A34A"></span> Histogram+</span>
+          <span class="leg"><span class="sw" style="background:#DC2626"></span> Histogram−</span>
+          <span class="leg"><span class="sw" style="background:#3B82F6"></span> MACD</span>
+          <span class="leg"><span class="sw" style="background:#F97316"></span> Signal</span>
+        </div>
+      </article>
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">RSI</span>
+            <span class="sa-chart-tf-badge">14-period</span>
+          </div>
+          <span class="sa-chart-return" id="ret-rsi">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-rsi" style="height:200px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#C4820A"></span> RSI</span>
+          <span class="leg" style="color:#DC2626">— 70 Overbought</span>
+          <span class="leg" style="color:#16A34A">— 30 Oversold</span>
+        </div>
+      </article>
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">Stochastic RSI</span>
+            <span class="sa-chart-tf-badge">%K · %D</span>
+          </div>
+          <span class="sa-chart-return" id="ret-stoch">—</span>
+        </header>
+        <div class="sa-chart-canvas" id="chart-stoch" style="height:200px"></div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#3B82F6"></span> %K</span>
+          <span class="leg"><span class="sw" style="background:#F97316"></span> %D</span>
+          <span class="leg" style="color:#DC2626">— 0.8 band</span>
+          <span class="leg" style="color:#16A34A">— 0.2 band</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- ═══ SECTION 6 — ADDITIONAL CHARTS ═══ -->
+    <section class="sa-extra-charts" aria-label="Additional analytics charts">
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">Volume Profile</span>
+            <span class="sa-chart-tf-badge">21D · Point of Control</span>
+          </div>
+          <span class="sa-chart-return up" id="vp-label">Bullish bias</span>
+        </header>
+        <div class="sa-chart-canvas" style="height:280px;padding:12px">
+          <canvas id="chart-vp"></canvas>
+        </div>
+        <div class="sa-chart-legend">
+          <span class="leg" style="color:var(--sa-amber-2)"><span class="sw" style="background:#C4820A"></span> Value Area (70%)</span>
+          <span class="leg"><span class="sw" style="background:#94A3B8"></span> Outside VA</span>
+          <span class="leg" style="color:var(--sa-green)"><span class="sw" style="background:#16A34A"></span> POC</span>
+        </div>
+      </article>
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">Relative Strength</span>
+            <span class="sa-chart-tf-badge" id="rs-sym-label">vs NIFTY 50 · 21D</span>
+          </div>
+          <span class="sa-chart-return" id="rs-label">—</span>
+        </header>
+        <div class="sa-chart-canvas" style="height:280px;padding:12px">
+          <canvas id="chart-rs"></canvas>
+        </div>
+        <div class="sa-chart-legend">
+          <span class="leg" style="color:var(--sa-green)"><span class="sw" style="background:#16A34A"></span> <span id="rs-stock-leg">Stock</span></span>
+          <span class="leg"><span class="sw" style="background:#94A3B8"></span> NIFTY 50</span>
+          <span class="leg" style="color:var(--sa-fg-muted)" id="rs-alpha-leg">—</span>
+        </div>
+      </article>
+
+      <article class="sa-chart-card">
+        <header class="sa-chart-hd">
+          <div class="sa-chart-hd-left">
+            <span class="sa-chart-title">Delivery %</span>
+            <span class="sa-chart-tf-badge">Last 21 sessions</span>
+          </div>
+          <span class="sa-chart-return" id="del-avg-label">—</span>
+        </header>
+        <div class="sa-chart-canvas" style="height:280px;padding:12px">
+          <canvas id="chart-delivery"></canvas>
+        </div>
+        <div class="sa-chart-legend">
+          <span class="leg"><span class="sw" style="background:#94A3B8"></span> Daily %</span>
+          <span class="leg" style="color:var(--sa-amber-2)"><span class="sw" style="background:#C4820A"></span> &gt;70% (strong)</span>
+          <span class="leg" style="color:var(--sa-green)"><span class="sw" style="background:#16A34A"></span> Today</span>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- ═══ SECTION 7 — ANALYST VERDICT ═══ -->
+    <section class="sa-verdict" aria-label="Analyst view" id="verdict-section">
+      <div>
+        <div class="sa-verdict-hd">
+          <h2><em>annaPaisa</em> Analyst View</h2>
+          <span class="sa-verdict-rating" id="v-rating"><span class="dot"></span><span id="v-rating-text">—</span></span>
+        </div>
+        <div class="sa-verdict-targets">
+          <div class="sa-target">
+            <div class="label">3-Month Target</div>
+            <div class="value" id="v-target">—</div>
+            <div class="pct up" id="v-target-pct">—</div>
+          </div>
+          <div class="sa-target">
+            <div class="label">Stop Loss</div>
+            <div class="value" id="v-sl">—</div>
+            <div class="pct down" id="v-sl-pct">—</div>
+          </div>
+        </div>
+        <div class="sa-rr-bar">
+          <span class="label">Risk / Reward</span>
+          <div class="vis" id="v-rr-vis">
+            <span class="r" style="flex:1"></span>
+            <span class="g" style="flex:2"></span>
+          </div>
+          <span class="ratio" id="v-rr-ratio">—</span>
+        </div>
+        <p class="sa-verdict-quote" id="v-quote">—</p>
+        <div class="sa-verdict-actions">
+          <a href="#" class="sa-btn sa-btn-primary">Read Full Analysis →</a>
+          <a href="#" class="sa-btn sa-btn-secondary" onclick="alert('Alerts coming soon!');return false">Set Price Alert</a>
+        </div>
+      </div>
+      <div>
+        <div style="background:rgba(0,0,0,0.25);border:1px solid var(--sa-border-2);border-radius:var(--sa-r-sm);padding:18px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--sa-fg-muted);margin-bottom:14px">Analyst Consensus · <span id="v-firm-count">24</span> firms</div>
+          <div id="v-consensus" style="display:flex;flex-direction:column;gap:10px"><!-- JS --></div>
+          <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--sa-border-2);display:grid;grid-template-columns:1fr 1fr;gap:12px;font-family:var(--sa-font-mono);font-size:11px;color:var(--sa-fg-muted)">
+            <div>
+              <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;font-family:var(--sa-font-sans);color:var(--sa-fg-muted)">Avg Target</div>
+              <div id="v-mean-target" style="font-size:15px;color:var(--sa-fg);font-weight:700">—</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;font-family:var(--sa-font-sans);color:var(--sa-fg-muted)">Stop Loss</div>
+              <div id="v-mean-sl" style="font-size:13px;color:var(--sa-fg)">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ SECTION 8 — RELATED NEWS ═══ -->
+    <section class="sa-news-section" aria-label="Related news">
+      <div class="sa-section-hd">
+        <h2 id="news-title">Latest News</h2>
+        <a href="#" class="sa-section-more" id="news-more-link">View all →</a>
+      </div>
+      <div class="sa-news-scroll" id="news-grid"><!-- JS --></div>
+    </section>
+
+  </div><!-- /.sa-wrap -->
+</div><!-- /#sa-content -->
+
+<!-- ════════ SCRIPTS ════════ -->
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+'use strict';
+
+const API = 'https://api.paisabot.com';
+let allStocks = [];
+let currentSymbol = '';
+let chartInstances = {};
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+
+function fmtPrice(v) {
+  if (v == null) return '—';
+  return '₹' + parseFloat(v).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function fmtNum(v) {
+  if (v == null) return '—';
+  return parseFloat(v).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function fmtLarge(v) {
+  if (v == null) return '—';
+  const n = parseFloat(v);
+  if (n >= 1e12) return '₹' + (n/1e12).toFixed(2) + 'L Cr';
+  if (n >= 1e7)  return '₹' + (n/1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5)  return '₹' + (n/1e5).toFixed(2) + 'L';
+  return '₹' + n.toLocaleString('en-IN');
+}
+function fmtVol(v) {
+  if (v == null) return '—';
+  const n = parseInt(v);
+  if (n >= 1e7) return (n/1e7).toFixed(2) + ' Cr';
+  if (n >= 1e5) return (n/1e5).toFixed(2) + 'L';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+function fmtPct(v) {
+  if (v == null) return '—';
+  const n = parseFloat(v);
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+function relTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff/60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins/60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return d.toLocaleDateString('en-IN', {day:'numeric',month:'short'});
+}
+function calcEMA(data, period) {
+  if (!data.length) return [];
+  const k = 2 / (period + 1);
+  let ema = data[0].value;
+  return data.map((d, i) => {
+    if (i === 0) { return { time: d.time, value: ema }; }
+    ema = d.value * k + ema * (1 - k);
+    return { time: d.time, value: parseFloat(ema.toFixed(2)) };
+  });
+}
+function calcBollinger(data, period=20, mult=2) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) continue;
+    const slice = data.slice(i - period + 1, i + 1).map(d => d.value);
+    const mean = slice.reduce((s,v) => s+v, 0) / period;
+    const variance = slice.reduce((s,v) => s + (v-mean)**2, 0) / period;
+    const std = Math.sqrt(variance);
+    result.push({ time: data[i].time, middle: parseFloat(mean.toFixed(2)), upper: parseFloat((mean + mult*std).toFixed(2)), lower: parseFloat((mean - mult*std).toFixed(2)) });
+  }
+  return result;
+}
+function calcMACD(data, fast=12, slow=26, sig=9) {
+  if (data.length < slow + sig) return { macdLine: [], signalLine: [], histogram: [] };
+  const emaFast = calcEMA(data, fast);
+  const emaSlow = calcEMA(data, slow);
+  const macdLine = [];
+  for (let i = slow - 1; i < data.length; i++) {
+    macdLine.push({ time: data[i].time, value: parseFloat((emaFast[i].value - emaSlow[i].value).toFixed(4)) });
+  }
+  const signalLine = calcEMA(macdLine, sig);
+  const histogram = macdLine.map((m, i) => ({
+    time: m.time,
+    value: i < sig - 1 ? 0 : parseFloat((m.value - signalLine[i].value).toFixed(4))
+  }));
+  return { macdLine, signalLine, histogram };
+}
+function calcRSI(data, period=14) {
+  if (data.length < period + 1) return [];
+  const changes = [];
+  for (let i = 1; i < data.length; i++) changes.push(data[i].value - data[i-1].value);
+  let avgGain = changes.slice(0, period).filter(c => c > 0).reduce((s,c) => s+c, 0) / period;
+  let avgLoss = changes.slice(0, period).filter(c => c < 0).reduce((s,c) => s+Math.abs(c), 0) / period;
+  const rsiData = [];
+  for (let i = period; i < data.length; i++) {
+    const change = changes[i-1];
+    avgGain = (avgGain * (period-1) + Math.max(change, 0)) / period;
+    avgLoss = (avgLoss * (period-1) + Math.max(-change, 0)) / period;
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    rsiData.push({ time: data[i].time, value: parseFloat((100 - 100/(1+rs)).toFixed(2)) });
+  }
+  return rsiData;
+}
+function calcStochRSI(rsiData, period=14) {
+  const kLine = [];
+  for (let i = period - 1; i < rsiData.length; i++) {
+    const slice = rsiData.slice(i - period + 1, i + 1).map(d => d.value);
+    const min = Math.min(...slice); const max = Math.max(...slice);
+    const k = max === min ? 0 : (rsiData[i].value - min) / (max - min);
+    kLine.push({ time: rsiData[i].time, value: parseFloat(k.toFixed(4)) });
+  }
+  const dLine = calcEMA(kLine, 3);
+  return { kLine, dLine };
+}
+function toDateStr(ts) {
+  if (!ts) return '';
+  return (typeof ts === 'string' ? ts : ts.toISOString()).slice(0, 10);
+}
+function toUnixSec(ts) {
+  return Math.floor(new Date(ts).getTime() / 1000);
+}
+
+// ── TV CHART FACTORY ──────────────────────────────────────────────────────
+
+function createTVChart(containerId, opts = {}) {
+  const container = document.getElementById(containerId);
+  if (!container) return null;
+  // Destroy previous instance
+  if (chartInstances[containerId]) {
+    try { chartInstances[containerId].remove(); } catch(e) {}
+  }
+  const chart = LightweightCharts.createChart(container, {
+    layout: { background: { color: '#0A1626' }, textColor: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" },
+    grid: { vertLines: { color: '#1E3050', style: 1 }, horzLines: { color: '#1E3050', style: 1 } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#1E3050', scaleMargins: { top: 0.1, bottom: 0.2 } },
+    timeScale: { borderColor: '#1E3050', timeVisible: true, secondsVisible: false },
+    width: container.clientWidth,
+    height: container.clientHeight || 200,
+    handleScroll: true, handleScale: true,
+    ...opts
+  });
+  const ro = new ResizeObserver(entries => {
+    for (const e of entries) {
+      chart.applyOptions({ width: e.contentRect.width, height: e.contentRect.height || 200 });
+    }
+  });
+  ro.observe(container);
+  chartInstances[containerId] = chart;
+  return chart;
+}
+
+// ── CHART.JS FACTORY ──────────────────────────────────────────────────────
+
+function createCJSChart(canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const existing = Chart.getChart(canvas);
+  if (existing) existing.destroy();
+  return new Chart(canvas, config);
+}
+
+// ── BUILD 1D INTRADAY CHART ───────────────────────────────────────────────
+
+function build1DChart(candles) {
+  const chart = createTVChart('chart-1d', { timeScale: { timeVisible: true, secondsVisible: false } });
+  if (!chart) return;
+  if (!candles || !candles.length) { return; }
+
+  const areaData = candles.map(c => ({ time: toUnixSec(c.ts), value: parseFloat(c.close) }));
+  const openRef  = parseFloat(candles[0].open);
+
+  const areaSeries = chart.addAreaSeries({
+    lineColor: '#16A34A', topColor: 'rgba(22,163,74,0.25)',
+    bottomColor: 'rgba(22,163,74,0)', lineWidth: 2,
+  });
+  areaSeries.setData(areaData);
+
+  const baseLineSeries = chart.addLineSeries({
+    color: 'rgba(71,85,105,0.6)', lineWidth: 1, lineStyle: 1,
+    priceLineVisible: false, lastValueVisible: false,
+  });
+  baseLineSeries.setData(areaData.map(d => ({ time: d.time, value: openRef })));
+
+  const volSeries = chart.addHistogramSeries({
+    color: '#16A34A', priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
+    scaleMargins: { top: 0.82, bottom: 0 },
+  });
+  volSeries.setData(candles.map(c => ({
+    time: toUnixSec(c.ts),
+    value: parseFloat(c.volume) || 0,
+    color: parseFloat(c.close) >= parseFloat(c.open) ? 'rgba(22,163,74,0.6)' : 'rgba(220,38,38,0.6)',
+  })));
+
+  chart.timeScale().fitContent();
+
+  // Update return badge
+  const first = parseFloat(candles[0].close);
+  const last  = parseFloat(candles[candles.length-1].close);
+  const pct   = ((last-first)/first*100).toFixed(2);
+  const badge = document.getElementById('ret-1d');
+  badge.textContent = (pct >= 0 ? '▲ +' : '▼ ') + pct + '%';
+  badge.className = 'sa-chart-return ' + (pct >= 0 ? 'up' : 'down');
+}
+
+// ── BUILD 5D CANDLESTICK CHART ────────────────────────────────────────────
+
+function build5DChart(candles) {
+  const chart = createTVChart('chart-5d');
+  if (!chart || !candles || !candles.length) return;
+
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: '#16A34A', downColor: '#DC2626',
+    borderUpColor: '#16A34A', borderDownColor: '#DC2626',
+    wickUpColor: '#16A34A', wickDownColor: '#DC2626',
+  });
+  candleSeries.setData(candles.map(c => ({
+    time: toDateStr(c.ts),
+    open: parseFloat(c.open), high: parseFloat(c.high),
+    low: parseFloat(c.low), close: parseFloat(c.close),
+  })));
+
+  const volSeries = chart.addHistogramSeries({
+    color: '#16A34A', priceFormat: { type: 'volume' },
+    priceScaleId: 'vol', scaleMargins: { top: 0.82, bottom: 0 },
+  });
+  volSeries.setData(candles.map(c => ({
+    time: toDateStr(c.ts), value: parseFloat(c.volume) || 0,
+    color: parseFloat(c.close) >= parseFloat(c.open) ? 'rgba(22,163,74,0.6)' : 'rgba(220,38,38,0.6)',
+  })));
+
+  chart.timeScale().fitContent();
+
+  const first = parseFloat(candles[0].open);
+  const last  = parseFloat(candles[candles.length-1].close);
+  const pct   = ((last-first)/first*100).toFixed(2);
+  const badge = document.getElementById('ret-5d');
+  badge.textContent = (pct >= 0 ? '▲ +' : '▼ ') + pct + '%';
+  badge.className = 'sa-chart-return ' + (pct >= 0 ? 'up' : 'down');
+}
+
+// ── BUILD 21D AREA + EMA CHART ────────────────────────────────────────────
+
+function build21DChart(candles) {
+  const chart = createTVChart('chart-21d', {
+    timeScale: { timeVisible: false },
+  });
+  if (!chart || !candles || !candles.length) return;
+
+  const priceData = candles.map(c => ({ time: toDateStr(c.ts), value: parseFloat(c.close) }));
+  const ema9Data  = calcEMA(priceData, 9);
+  const ema21Data = calcEMA(priceData, 21);
+
+  const areaSeries = chart.addAreaSeries({
+    lineColor: '#C4820A', topColor: 'rgba(196,130,10,0.22)',
+    bottomColor: 'rgba(196,130,10,0)', lineWidth: 2,
+  });
+  areaSeries.setData(priceData);
+
+  const ema9Series = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+  ema9Series.setData(ema9Data);
+
+  const ema21Series = chart.addLineSeries({ color: '#94A3B8', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+  ema21Series.setData(ema21Data);
+
+  chart.timeScale().fitContent();
+
+  const first = parseFloat(candles[0].close);
+  const last  = parseFloat(candles[candles.length-1].close);
+  const pct   = ((last-first)/first*100).toFixed(2);
+  const badge = document.getElementById('ret-21d');
+  badge.textContent = (pct >= 0 ? '▲ +' : '▼ ') + pct + '%';
+  badge.className = 'sa-chart-return ' + (pct >= 0 ? 'up' : 'down');
+}
+
+// ── BUILD VOLUME PROFILE CHART ────────────────────────────────────────────
+
+function buildVPChart(vpData) {
+  if (!vpData || !vpData.length) return;
+  const sorted = [...vpData].sort((a,b) => a.price - b.price);
+  const maxVol = Math.max(...sorted.map(d => d.vol));
+  const poc    = sorted.reduce((m,d) => d.vol > m.vol ? d : m, sorted[0]);
+  const totalVol = sorted.reduce((s,d) => s+d.vol, 0);
+
+  // Value area: 70% of volume centered around POC
+  let vaVol = 0;
+  const vaTarget = totalVol * 0.7;
+  const pocIdx = sorted.indexOf(poc);
+  let lo = pocIdx, hi = pocIdx;
+  while (vaVol < vaTarget && (lo > 0 || hi < sorted.length-1)) {
+    const addLo = lo > 0 ? sorted[lo-1].vol : 0;
+    const addHi = hi < sorted.length-1 ? sorted[hi+1].vol : 0;
+    if (addLo >= addHi && lo > 0) { lo--; vaVol += sorted[lo].vol; }
+    else if (hi < sorted.length-1) { hi++; vaVol += sorted[hi].vol; }
+    else break;
+  }
+
+  const labels  = sorted.map(d => '₹' + Math.round(d.price).toLocaleString('en-IN'));
+  const colors  = sorted.map((d,i) => {
+    if (d.price === poc.price) return 'rgba(22,163,74,0.9)';
+    if (i >= lo && i <= hi) return 'rgba(196,130,10,0.7)';
+    return 'rgba(148,163,184,0.4)';
+  });
+
+  createCJSChart('chart-vp', {
+    type: 'bar',
+    data: { labels, datasets: [{ data: sorted.map(d => d.vol), backgroundColor: colors, borderWidth: 0 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => ' Vol: ' + ctx.raw.toLocaleString('en-IN') }
+      }},
+      scales: {
+        x: { grid: { color: '#1E3050' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono'" } } },
+        y: { grid: { color: '#1E3050' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono'", size: 10 } } },
+      },
+    }
+  });
+}
+
+// ── BUILD RELATIVE STRENGTH CHART ─────────────────────────────────────────
+
+function buildRSChart(rsData, symbol) {
+  if (!rsData || !rsData.length) return;
+  const labels  = rsData.map(d => d.date ? d.date.slice(5) : '');
+  const stockVals = rsData.map(d => parseFloat(d.stock).toFixed(2));
+  const niftyVals = rsData.map(d => parseFloat(d.nifty).toFixed(2));
+
+  const lastStock = parseFloat(stockVals[stockVals.length-1]);
+  const lastNifty = parseFloat(niftyVals[niftyVals.length-1]);
+  const alpha = (lastStock - lastNifty).toFixed(2);
+  document.getElementById('rs-label').textContent = alpha >= 0 ? '▲ Outperforming' : '▼ Underperforming';
+  document.getElementById('rs-label').className = 'sa-chart-return ' + (alpha >= 0 ? 'up' : 'down');
+  document.getElementById('rs-stock-leg').textContent = symbol;
+  document.getElementById('rs-alpha-leg').textContent = (alpha >= 0 ? '+' : '') + alpha + ' alpha';
+
+  createCJSChart('chart-rs', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: symbol, data: stockVals, borderColor: '#16A34A', backgroundColor: 'rgba(22,163,74,0.1)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 0, pointHoverRadius: 3 },
+        { label: 'NIFTY 50', data: niftyVals, borderColor: '#94A3B8', backgroundColor: 'transparent', fill: false, tension: 0.3, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3, borderDash: [4,3] },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        x: { grid: { color: '#1E3050' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono'", size: 9 }, maxTicksLimit: 7 } },
+        y: { grid: { color: '#1E3050' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono'", size: 9 } } },
+      }
+    }
+  });
+}
+
+// ── BUILD DELIVERY % CHART ────────────────────────────────────────────────
+
+function buildDeliveryChart(rsData, todayDel) {
+  if (!rsData || !rsData.length) return;
+  const labels = rsData.map(d => d.date ? d.date.slice(5) : '');
+  const vals   = rsData.map(d => parseFloat(d.delivery || 50).toFixed(1));
+  const avg    = (vals.reduce((s,v)=>s+parseFloat(v),0)/vals.length).toFixed(1);
+  const colors = rsData.map((d,i) => {
+    if (i === rsData.length-1) return 'rgba(22,163,74,0.9)';
+    if (parseFloat(d.delivery) > 70) return 'rgba(196,130,10,0.8)';
+    return 'rgba(148,163,184,0.5)';
+  });
+
+  document.getElementById('del-avg-label').textContent = 'Avg ' + avg + '%';
+  document.getElementById('del-avg-label').className = 'sa-chart-return ' + (parseFloat(todayDel) > 70 ? 'up' : '');
+
+  createCJSChart('chart-delivery', {
+    type: 'bar',
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0, borderRadius: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + ctx.raw + '%' } } },
+      scales: {
+        x: { grid: { color: '#1E3050' }, ticks: { color: '#64748B', font: { family: "'JetBrains Mono'", size: 9 }, maxTicksLimit: 7 } },
+        y: { min: 0, max: 100, grid: { color: '#1E3050' }, ticks: { color: '#94A3B8', font: { family: "'JetBrains Mono'", size: 9 }, callback: v => v + '%' } },
+      }
+    }
+  });
+}
+
+// ── BUILD ADVANCED TECHNICAL CHART ───────────────────────────────────────
+
+function buildAdvancedChart(candles, snap) {
+  if (!candles || candles.length < 2) return;
+  const chart = createTVChart('chart-adv', {
+    rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.25 } },
+  });
+  if (!chart) return;
+
+  // Candlestick series
+  const candleSeries = chart.addCandlestickSeries({
+    upColor: '#16A34A', downColor: '#DC2626',
+    borderUpColor: '#16A34A', borderDownColor: '#DC2626',
+    wickUpColor: '#16A34A', wickDownColor: '#DC2626',
+  });
+  const ohlcData = candles.map(c => ({
+    time: toUnixSec(c.ts),
+    open: parseFloat(c.open), high: parseFloat(c.high),
+    low: parseFloat(c.low),  close: parseFloat(c.close),
+  }));
+  candleSeries.setData(ohlcData);
+
+  // Volume
+  const volSeries = chart.addHistogramSeries({
+    color: '#16A34A', priceFormat: { type: 'volume' },
+    priceScaleId: 'vol', scaleMargins: { top: 0.82, bottom: 0 },
+  });
+  volSeries.setData(candles.map(c => ({
+    time: toUnixSec(c.ts),
+    value: parseFloat(c.volume) || 0,
+    color: parseFloat(c.close) >= parseFloat(c.open) ? 'rgba(22,163,74,0.5)' : 'rgba(220,38,38,0.5)',
+  })));
+
+  // Bollinger Bands
+  const priceData = candles.map(c => ({ time: toUnixSec(c.ts), value: parseFloat(c.close) }));
+  const bb = calcBollinger(priceData, 20, 2);
+  if (bb.length) {
+    const bbUpper = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: false });
+    bbUpper.setData(bb.map(d => ({ time: d.time, value: d.upper })));
+    const bbMid = chart.addLineSeries({ color: '#94A3B8', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+    bbMid.setData(bb.map(d => ({ time: d.time, value: d.middle })));
+    const bbLower = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1, lineStyle: 1, priceLineVisible: false, lastValueVisible: false });
+    bbLower.setData(bb.map(d => ({ time: d.time, value: d.lower })));
+  }
+
+  // EMAs
+  const ema9  = calcEMA(priceData, 9);
+  const ema21 = calcEMA(priceData, 21);
+  const ema50 = calcEMA(priceData, 50);
+  [{ d: ema9, c: '#60A5FA' }, { d: ema21, c: '#94A3B8' }, { d: ema50, c: '#C4820A' }].forEach(({ d, c }) => {
+    if (!d.length) return;
+    const s = chart.addLineSeries({ color: c, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+    s.setData(d);
+  });
+
+  // S/R price lines
+  if (snap) {
+    const levels = [
+      { val: snap.r3, color: 'rgba(220,38,38,0.7)',  title: 'R3' },
+      { val: snap.r2, color: 'rgba(220,38,38,0.55)', title: 'R2' },
+      { val: snap.r1, color: 'rgba(220,38,38,0.4)',  title: 'R1' },
+      { val: snap.s1, color: 'rgba(22,163,74,0.4)',  title: 'S1' },
+      { val: snap.s2, color: 'rgba(22,163,74,0.55)', title: 'S2' },
+      { val: snap.s3, color: 'rgba(22,163,74,0.7)',  title: 'S3' },
+    ];
+    levels.forEach(({ val, color, title }) => {
+      if (!val) return;
+      candleSeries.createPriceLine({ price: parseFloat(val), color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
+    });
+  }
+
+  chart.timeScale().fitContent();
+
+  // Return badge
+  const first = parseFloat(candles[0].close);
+  const last  = parseFloat(candles[candles.length-1].close);
+  const pct   = ((last - first) / first * 100).toFixed(2);
+  const el    = document.getElementById('ret-adv');
+  if (el) { el.textContent = (pct >= 0 ? '▲ +' : '▼ ') + Math.abs(pct) + '%'; el.className = 'sa-chart-return ' + (pct >= 0 ? 'up' : 'down'); }
+}
+
+// ── BUILD MACD CHART ──────────────────────────────────────────────────────
+
+function buildMACDChart(candles) {
+  if (!candles || candles.length < 35) return;
+  const priceData = candles.map(c => ({ time: toUnixSec(c.ts), value: parseFloat(c.close) }));
+  const { macdLine, signalLine, histogram } = calcMACD(priceData);
+  if (!macdLine.length) return;
+
+  const chart = createTVChart('chart-macd', { rightPriceScale: { scaleMargins: { top: 0.1, bottom: 0.1 } } });
+  if (!chart) return;
+
+  const histSeries = chart.addHistogramSeries({
+    priceLineVisible: false, lastValueVisible: false,
+    color: '#16A34A',
+  });
+  histSeries.setData(histogram.map(d => ({ time: d.time, value: d.value, color: d.value >= 0 ? 'rgba(22,163,74,0.8)' : 'rgba(220,38,38,0.8)' })));
+
+  const macdSeries = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+  macdSeries.setData(macdLine);
+
+  const signalSeries = chart.addLineSeries({ color: '#F97316', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+  signalSeries.setData(signalLine);
+
+  chart.timeScale().fitContent();
+
+  const last = macdLine[macdLine.length-1];
+  const sig  = signalLine[signalLine.length-1];
+  const el   = document.getElementById('ret-macd');
+  if (el && last && sig) {
+    const cross = last.value > sig.value ? 'Bullish' : 'Bearish';
+    el.textContent = cross; el.className = 'sa-chart-return ' + (last.value > sig.value ? 'up' : 'down');
+  }
+}
+
+// ── BUILD RSI CHART ───────────────────────────────────────────────────────
+
+function buildRSIChart(candles) {
+  if (!candles || candles.length < 15) return;
+  const priceData = candles.map(c => ({ time: toUnixSec(c.ts), value: parseFloat(c.close) }));
+  const rsiData = calcRSI(priceData, 14);
+  if (!rsiData.length) return;
+
+  const chart = createTVChart('chart-rsi', { rightPriceScale: { scaleMargins: { top: 0.05, bottom: 0.05 } } });
+  if (!chart) return;
+
+  const rsiSeries = chart.addLineSeries({ color: '#C4820A', lineWidth: 2, priceLineVisible: false, lastValueVisible: true });
+  rsiSeries.setData(rsiData);
+
+  // Overbought / oversold lines
+  [{ val: 70, color: 'rgba(220,38,38,0.7)', title: 'OB' }, { val: 30, color: 'rgba(22,163,74,0.7)', title: 'OS' }].forEach(({ val, color, title }) => {
+    rsiSeries.createPriceLine({ price: val, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
+  });
+
+  chart.timeScale().fitContent();
+
+  const last = rsiData[rsiData.length-1];
+  const el   = document.getElementById('ret-rsi');
+  if (el && last) {
+    const label = last.value > 70 ? 'Overbought' : last.value < 30 ? 'Oversold' : 'Neutral';
+    const cls   = last.value > 70 ? 'down' : last.value < 30 ? 'up' : '';
+    el.textContent = label + ' · ' + last.value; el.className = 'sa-chart-return ' + cls;
+  }
+}
+
+// ── BUILD STOCH RSI CHART ─────────────────────────────────────────────────
+
+function buildStochRSIChart(candles) {
+  if (!candles || candles.length < 30) return;
+  const priceData = candles.map(c => ({ time: toUnixSec(c.ts), value: parseFloat(c.close) }));
+  const rsiData   = calcRSI(priceData, 14);
+  if (rsiData.length < 14) return;
+  const { kLine, dLine } = calcStochRSI(rsiData, 14);
+  if (!kLine.length) return;
+
+  const chart = createTVChart('chart-stoch', { rightPriceScale: { scaleMargins: { top: 0.05, bottom: 0.05 } } });
+  if (!chart) return;
+
+  const kSeries = chart.addLineSeries({ color: '#3B82F6', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: true });
+  kSeries.setData(kLine);
+
+  const dSeries = chart.addLineSeries({ color: '#F97316', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
+  dSeries.setData(dLine);
+
+  [{ val: 0.8, color: 'rgba(220,38,38,0.7)', title: '0.8' }, { val: 0.2, color: 'rgba(22,163,74,0.7)', title: '0.2' }].forEach(({ val, color, title }) => {
+    kSeries.createPriceLine({ price: val, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title });
+  });
+
+  chart.timeScale().fitContent();
+
+  const lastK = kLine[kLine.length-1];
+  const el    = document.getElementById('ret-stoch');
+  if (el && lastK) {
+    const label = lastK.value > 0.8 ? 'Overbought' : lastK.value < 0.2 ? 'Oversold' : 'Neutral';
+    const cls   = lastK.value > 0.8 ? 'down' : lastK.value < 0.2 ? 'up' : '';
+    el.textContent = label; el.className = 'sa-chart-return ' + cls;
+  }
+}
+
+// ── POPULATE HERO ─────────────────────────────────────────────────────────
+
+function populateHero(stock, snap) {
+  const sym = stock.symbol || '';
+  document.title = sym + ' — Stock Analysis · annaPaisa';
+  document.getElementById('page-title').textContent = sym + ' — Stock Analysis · annaPaisa';
+  document.getElementById('h-symbol').textContent = sym;
+  document.getElementById('h-exchange').textContent = stock.exchange || 'NSE';
+  document.getElementById('h-name').textContent = (stock.company_name || '') + ' · ' + (stock.sector || '');
+
+  const price  = parseFloat(snap.close) || 0;
+  const open   = parseFloat(snap.open)  || price;
+  const change = price - open;
+  const chgPct = open ? (change/open*100) : 0;
+  const isUp   = change >= 0;
+
+  document.getElementById('h-price').textContent = fmtPrice(price);
+  const chgEl = document.getElementById('h-change');
+  chgEl.className = 'sa-change ' + (isUp ? 'up' : 'down');
+  chgEl.innerHTML = `<span class="sa-change-arrow">${isUp?'▲':'▼'}</span> ${isUp?'+':''}${change.toFixed(2)} <span style="color:var(--sa-fg-3);font-weight:500">(${fmtPct(chgPct)})</span>`;
+
+  document.getElementById('h-volume').textContent = fmtVol(snap.volume);
+  document.getElementById('h-mcap').textContent = fmtLarge(snap.market_cap);
+  document.getElementById('h-range').textContent = fmtNum(snap.low) + ' – ' + fmtNum(snap.high);
+  document.getElementById('h-52w').textContent = fmtNum(snap.week52_low) + ' – ' + fmtNum(snap.week52_high);
+
+  const updated = snap.last_updated ? new Date(snap.last_updated) : null;
+  document.getElementById('h-last-updated').textContent = updated
+    ? updated.toLocaleString('en-IN', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) + ' IST'
+    : '—';
+  document.getElementById('h-livetime-text').textContent = updated
+    ? 'Data as of ' + updated.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}) + ' IST'
+    : 'NSE Closed';
+
+  const date = snap.snapshot_date ? new Date(snap.snapshot_date).toLocaleDateString('en-IN', {day:'numeric',month:'long',year:'numeric'}) : '—';
+  document.getElementById('ohlcv-date').textContent = date;
+}
+
+// ── POPULATE OHLCV ────────────────────────────────────────────────────────
+
+function populateOHLCV(snap) {
+  const price = parseFloat(snap.close) || 0;
+  const open  = parseFloat(snap.open)  || price;
+  const isUp  = price >= open;
+
+  document.getElementById('d-open').textContent  = fmtPrice(snap.open);
+  document.getElementById('d-high').textContent  = fmtPrice(snap.high);
+  document.getElementById('d-low').textContent   = fmtPrice(snap.low);
+  document.getElementById('d-close').textContent = fmtPrice(snap.close);
+  document.getElementById('d-volume').textContent = fmtVol(snap.volume);
+  document.getElementById('d-value').textContent  = fmtLarge(snap.value);
+  document.getElementById('d-vwap').textContent   = fmtPrice(snap.vwap);
+
+  const highDiff = snap.high && snap.open ? (parseFloat(snap.high) - parseFloat(snap.open)).toFixed(2) : null;
+  const lowDiff  = snap.low  && snap.open ? (parseFloat(snap.low)  - parseFloat(snap.open)).toFixed(2) : null;
+  if (highDiff) document.getElementById('d-high-diff').textContent = '▲ +' + highDiff;
+  if (lowDiff)  document.getElementById('d-low-diff').textContent  = '▼ ' + lowDiff;
+
+  const chgPct = open ? ((price-open)/open*100).toFixed(2) : 0;
+  const chgBadge = document.getElementById('d-chg-badge');
+  chgBadge.className = isUp ? 'badge-up' : 'badge-down';
+  chgBadge.textContent = (isUp?'▲ +':'▼ ') + Math.abs(chgPct) + '%';
+
+  const vwap = parseFloat(snap.vwap);
+  const vwapRel = document.getElementById('d-vwap-rel');
+  if (vwap && price) {
+    vwapRel.style.color = price > vwap ? 'var(--sa-green)' : 'var(--sa-red)';
+    vwapRel.textContent = price > vwap ? '▲ Above' : '▼ Below';
+  }
+}
+
+// ── POPULATE METRICS ──────────────────────────────────────────────────────
+
+function populateMetrics(snap) {
+  document.getElementById('m-52h').textContent  = fmtPrice(snap.week52_high);
+  document.getElementById('m-52l').textContent  = fmtPrice(snap.week52_low);
+  document.getElementById('m-pe').textContent   = snap.pe_ratio ? parseFloat(snap.pe_ratio).toFixed(1) + '×' : '—';
+  document.getElementById('m-eps').textContent  = fmtPrice(snap.eps);
+  document.getElementById('m-mcap').textContent = fmtLarge(snap.market_cap);
+  document.getElementById('m-beta').textContent = snap.beta ? parseFloat(snap.beta).toFixed(2) : '—';
+  document.getElementById('m-div').textContent  = snap.div_yield ? parseFloat(snap.div_yield).toFixed(2) + '%' : '—';
+  document.getElementById('m-del').textContent  = snap.delivery_pct ? parseFloat(snap.delivery_pct).toFixed(1) + '%' : '—';
+}
+
+// ── POPULATE S&R ──────────────────────────────────────────────────────────
+
+function populateSR(snap) {
+  const price = parseFloat(snap.close) || 0;
+  const levels = [
+    { label: 'R3', val: snap.r3, cls: 'r', strength: 'Strong' },
+    { label: 'R2', val: snap.r2, cls: 'r', strength: 'Moderate' },
+    { label: 'R1', val: snap.r1, cls: 'r', strength: 'Testing', active: price && snap.r1 && Math.abs(price-snap.r1)/price < 0.015 },
+    { label: '●',  val: snap.close, cls: 'cmp', strength: 'CMP' },
+    { label: 'S1', val: snap.s1, cls: 's', strength: 'Moderate' },
+    { label: 'S2', val: snap.s2, cls: 's', strength: 'Moderate' },
+    { label: 'S3', val: snap.s3, cls: 's', strength: 'Strong' },
+  ];
+  const ladder = document.getElementById('sr-ladder');
+  ladder.innerHTML = levels.map(l => `
+    <div class="sa-sr-level ${l.cls}${l.active?' active':''}">
+      <span class="sa-sr-label">${l.label}</span>
+      <span class="sa-sr-price">${fmtPrice(l.val)}</span>
+      <span class="sa-sr-bar"></span>
+      <span class="sa-sr-strength">${l.strength}</span>
+    </div>`).join('');
+}
+
+// ── POPULATE MOVING AVERAGES ───────────────────────────────────────────────
+
+function populateMA(snap) {
+  const price = parseFloat(snap.close) || 0;
+  const mas = [
+    { label: '9 EMA',   val: snap.ema9,   period: 9  },
+    { label: '21 EMA',  val: snap.ema21,  period: 21 },
+    { label: '50 SMA',  val: snap.ema50,  period: 50 },
+    { label: '200 SMA', val: snap.sma200, period: 200 },
+  ];
+  let bullCount = 0;
+  const rows = mas.map(m => {
+    const v = parseFloat(m.val);
+    const above = v && price > v;
+    if (above) bullCount++;
+    return `<div class="sa-ma-row">
+      <span class="sa-ma-label">${m.label}</span>
+      <span class="sa-ma-value">${fmtPrice(m.val)}</span>
+      <span class="sa-ma-rel ${above?'above':'below'}">${above?'Above':'Below'}</span>
+      <span class="sa-badge ${above?'bullish':'bearish'}">${above?'Bullish':'Bearish'}</span>
+    </div>`;
+  });
+  document.getElementById('ma-table').innerHTML = rows.join('');
+  document.getElementById('ma-summary').textContent = bullCount + ' / 4 Bullish';
+
+  const signal = document.getElementById('ma-signal');
+  const allBull = bullCount === 4;
+  signal.innerHTML = `
+    <span class="label">Overall signal</span>
+    <div class="value">${allBull?'BULLISH':'MIXED'} · ${bullCount} of 4 confirm</div>
+    <div class="sa-score-bar"><span style="width:${bullCount*25}%;background:${bullCount>=3?'var(--sa-green)':'var(--sa-amber)'}"></span></div>`;
+  signal.style.borderLeftColor = bullCount >= 3 ? 'var(--sa-green)' : 'var(--sa-amber)';
+  signal.style.background = bullCount >= 3 ? 'var(--sa-green-soft)' : 'var(--sa-amber-soft)';
+}
+
+// ── POPULATE MOMENTUM ─────────────────────────────────────────────────────
+
+function populateMomentum(snap) {
+  const rsi = parseFloat(snap.rsi);
+  const indicators = [
+    { label: 'RSI (14)',  val: snap.rsi  ? rsi.toFixed(1) : '—', badge: rsi>70?'overbought':rsi<30?'bearish':'neutral', text: rsi>70?'Overbought':rsi<30?'Oversold':'Neutral' },
+    { label: 'MACD',     val: snap.macd ? (parseFloat(snap.macd)>=0?'+':'') + parseFloat(snap.macd).toFixed(2) : '—',
+      badge: snap.macd && parseFloat(snap.macd)>0?'buy':'bearish', text: snap.macd && parseFloat(snap.macd)>0?'Buy':'Sell',
+      color: snap.macd && parseFloat(snap.macd)>0?'var(--sa-green)':'var(--sa-red)' },
+    { label: 'Stoch RSI', val: snap.stoch_rsi ? parseFloat(snap.stoch_rsi).toFixed(2) : '—',
+      badge: snap.stoch_rsi&&parseFloat(snap.stoch_rsi)>0.8?'overbought':snap.stoch_rsi&&parseFloat(snap.stoch_rsi)<0.2?'bullish':'neutral',
+      text: snap.stoch_rsi&&parseFloat(snap.stoch_rsi)>0.8?'Overbought':snap.stoch_rsi&&parseFloat(snap.stoch_rsi)<0.2?'Oversold':'Neutral' },
+    { label: 'ADX',       val: snap.adx  ? parseFloat(snap.adx).toFixed(1) : '—',
+      badge: snap.adx&&parseFloat(snap.adx)>25?'trending':'neutral', text: snap.adx&&parseFloat(snap.adx)>25?'Trending':'Ranging' },
+    { label: 'OBV',       val: snap.obv  ? (parseInt(snap.obv)>0?'↑ Rising':'↓ Falling') : '—',
+      badge: snap.obv&&parseInt(snap.obv)>0?'bullish':'bearish', text: snap.obv&&parseInt(snap.obv)>0?'Bullish':'Bearish',
+      color: snap.obv&&parseInt(snap.obv)>0?'var(--sa-green)':'var(--sa-red)' },
+    { label: 'ATR (14)',  val: snap.atr  ? '₹' + parseFloat(snap.atr).toFixed(1) : '—',
+      badge: 'warning', text: 'Elevated' },
+  ];
+  document.getElementById('mom-grid').innerHTML = indicators.map(i => `
+    <div class="sa-mi-row">
+      <span class="sa-mi-label">${i.label}</span>
+      <span class="sa-mi-value"${i.color?` style="color:${i.color}"`:''}>${i.val}</span>
+      <span class="sa-badge ${i.badge}">${i.text}</span>
+    </div>`).join('');
+
+  const rsiOk = rsi > 40 && rsi < 70;
+  const macdOk = snap.macd && parseFloat(snap.macd) > 0;
+  document.getElementById('mom-summary').textContent = rsiOk && macdOk ? 'Moderately Bullish' : rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Mixed Signals';
+}
+
+// ── POPULATE ALERTS ───────────────────────────────────────────────────────
+
+function populateAlerts(alerts) {
+  const row = document.getElementById('alerts-row');
+  if (!alerts || !alerts.length) {
+    row.style.display = 'none'; return;
+  }
+  row.style.display = '';
+  const typeClasses = { breakout: 'breakout', pattern: 'pattern', volume: 'volume' };
+  row.innerHTML = alerts.slice(0,3).map(a => `
+    <article class="sa-alert ${typeClasses[a.type]||'pattern'}">
+      <span class="sa-alert-hd"><span class="dot"></span>${a.type||'Alert'}</span>
+      <span class="sa-alert-title">${a.title||''}</span>
+      <span class="sa-alert-desc">${a.desc||''}</span>
+      <span class="sa-alert-foot">${a.foot||''}</span>
+    </article>`).join('');
+}
+
+// ── POPULATE VERDICT ──────────────────────────────────────────────────────
+
+function populateVerdict(snap) {
+  const price  = parseFloat(snap.close) || 0;
+  const target = parseFloat(snap.target_3m);
+  const sl     = parseFloat(snap.stop_loss);
+  const rr     = parseFloat(snap.rr_ratio);
+
+  document.getElementById('v-rating-text').textContent = snap.analyst_rating || 'Hold';
+  const ratingEl = document.getElementById('v-rating');
+  const isBull = ['Strong Buy','Buy'].includes(snap.analyst_rating);
+  ratingEl.style.background = isBull ? 'var(--sa-green-soft)' : snap.analyst_rating==='Sell' ? 'var(--sa-red-soft)' : 'var(--sa-amber-soft)';
+  ratingEl.style.color = isBull ? 'var(--sa-green)' : snap.analyst_rating==='Sell' ? 'var(--sa-red)' : 'var(--sa-amber-2)';
+  ratingEl.style.borderColor = isBull ? 'rgba(22,163,74,0.3)' : 'rgba(196,130,10,0.3)';
+
+  document.getElementById('v-target').textContent = fmtPrice(target);
+  document.getElementById('v-sl').textContent     = fmtPrice(sl);
+
+  if (target && price) {
+    const upPct = ((target-price)/price*100).toFixed(1);
+    document.getElementById('v-target-pct').textContent = (upPct>=0?'▲ +':'▼ ') + Math.abs(upPct) + '% upside';
+  }
+  if (sl && price) {
+    const riskPct = ((sl-price)/price*100).toFixed(1);
+    document.getElementById('v-sl-pct').textContent = '▼ ' + Math.abs(riskPct) + '% risk';
+  }
+
+  if (rr) {
+    document.getElementById('v-rr-ratio').textContent = '1 : ' + rr.toFixed(1);
+    document.getElementById('v-rr-vis').innerHTML = `<span class="r" style="flex:1"></span><span class="g" style="flex:${rr.toFixed(1)}"></span>`;
+  }
+
+  document.getElementById('v-quote').textContent = snap.verdict_text || '—';
+  document.getElementById('v-mean-target').textContent = fmtPrice(target);
+  document.getElementById('v-mean-sl').textContent = fmtPrice(sl);
+
+  const total = (snap.bull_count||0) + (snap.bear_count||0) + (snap.neutral_count||0);
+  document.getElementById('v-firm-count').textContent = total || 24;
+
+  const consensus = [
+    { label: 'Strong Buy', count: Math.round((snap.bull_count||14)*0.6), color: 'var(--sa-green)', bg: 'var(--sa-green)' },
+    { label: 'Buy',        count: snap.bull_count || 7,                   color: '#84CC16',         bg: '#84CC16' },
+    { label: 'Hold',       count: snap.neutral_count || 3,                color: 'var(--sa-fg-3)',   bg: '#94A3B8' },
+    { label: 'Sell',       count: snap.bear_count || 0,                   color: 'var(--sa-red)',    bg: 'var(--sa-red)' },
+  ];
+  const tot = consensus.reduce((s,c)=>s+c.count,0) || 24;
+  document.getElementById('v-consensus').innerHTML = consensus.map(c => `
+    <div style="display:grid;grid-template-columns:90px 1fr 30px;gap:10px;align-items:center;font-size:11.5px">
+      <span style="color:${c.color};font-weight:700">${c.label}</span>
+      <div style="height:6px;background:var(--sa-border);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${(c.count/tot*100).toFixed(0)}%;background:${c.bg}"></div>
+      </div>
+      <span class="sa-num" style="color:var(--sa-fg);font-size:11px">${c.count}</span>
+    </div>`).join('');
+}
+
+// ── POPULATE NEWS ─────────────────────────────────────────────────────────
+
+function populateNews(news, stockName) {
+  document.getElementById('news-title').textContent = 'Latest News — ' + stockName;
+  const catClass = { Markets: 'markets', Policy: 'policy', Economy: 'economy' };
+  const grid = document.getElementById('news-grid');
+  if (!news || !news.length) {
+    grid.innerHTML = '<div style="color:var(--sa-fg-muted);padding:24px">No news available</div>';
+    return;
+  }
+  grid.innerHTML = news.map(n => {
+    const cat = n.source ? 'Markets' : 'Economy';
+    const sent = n.sentiment || 'neutral';
+    const sentClass = sent==='bullish'?'positive':sent==='bearish'?'negative':'neutral';
+    const url = n.url || '#';
+    return `
+    <a href="${url}" target="_blank" rel="noopener noreferrer" class="sa-news-card" style="text-decoration:none">
+      <div class="sa-news-img">
+        <svg width="48" height="48" viewBox="0 0 40 40" style="opacity:.25">
+          <rect x="7" y="22" width="5" height="12" rx="2" fill="#fff"/>
+          <rect x="14" y="15" width="5" height="19" rx="2" fill="#fff" opacity=".75"/>
+          <rect x="21" y="9" width="5" height="25" rx="2" fill="#fff" opacity=".5"/>
+          <rect x="28" y="5" width="5" height="29" rx="2" fill="#fff" opacity=".3"/>
+        </svg>
+      </div>
+      <div class="sa-news-body">
+        <div class="sa-news-meta-row">
+          <span class="sa-news-cat ${catClass[cat]||'markets'}">${cat}</span>
+          <span class="sa-news-sentiment sa-badge ${sentClass}">${sent.charAt(0).toUpperCase()+sent.slice(1)}</span>
+        </div>
+        <h3 class="sa-news-title">${n.headline}</h3>
+        <div class="sa-news-time">${relTime(n.published_at)} · ${n.source || 'Financial News'}</div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+// ── MAIN LOAD FUNCTION ────────────────────────────────────────────────────
+
+async function loadStock(symbol) {
+  currentSymbol = symbol.toUpperCase();
+  document.getElementById('sa-loading').style.display = 'flex';
+  document.getElementById('sa-content').style.display = 'none';
+  document.getElementById('sa-error').style.display   = 'none';
+  document.getElementById('stock-search').value = currentSymbol;
+
+  try {
+    const resp = await fetch(`${API}/stock/${currentSymbol}`);
+    if (!resp.ok) throw new Error(resp.status === 404 ? `No data for ${currentSymbol}` : 'API error ' + resp.status);
+    const data = await resp.json();
+    const { stock, snapshot: snap, candles, news } = data;
+
+    // Populate all sections
+    populateHero(stock, snap);
+    populateOHLCV(snap);
+    populateMetrics(snap);
+    populateSR(snap);
+    populateMA(snap);
+    populateMomentum(snap);
+    populateAlerts(Array.isArray(snap.alerts) ? snap.alerts : []);
+    populateVerdict(snap);
+    populateNews(news, stock.company_name || currentSymbol);
+
+    // Charts
+    build1DChart(candles['1d']);
+    build5DChart(candles['5d']);
+    build21DChart(candles['21d']);
+
+    // Advanced charts — use 60d if available, fall back to 21d
+    const longCandles = candles['60d'] || candles['21d'] || [];
+    buildAdvancedChart(longCandles, snap);
+    buildMACDChart(longCandles);
+    buildRSIChart(longCandles);
+    buildStochRSIChart(longCandles);
+
+    const rsData = Array.isArray(snap.rs_vs_nifty) ? snap.rs_vs_nifty : [];
+    const vpData = Array.isArray(snap.volume_profile) ? snap.volume_profile : [];
+
+    buildVPChart(vpData);
+    buildRSChart(rsData, currentSymbol);
+    buildDeliveryChart(rsData, snap.delivery_pct);
+
+    // RS sym label
+    document.getElementById('rs-sym-label').textContent = 'vs NIFTY 50 · 21D';
+
+    // Update URL
+    const url = new URL(window.location);
+    url.searchParams.set('ticker', currentSymbol);
+    window.history.replaceState({}, '', url);
+
+    document.getElementById('sa-loading').style.display = 'none';
+    document.getElementById('sa-content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('sa-loading').style.display = 'none';
+    document.getElementById('sa-error').style.display   = 'flex';
+    document.getElementById('sa-error-msg').textContent = err.message;
+  }
+}
+
+// ── STOCK PICKER ──────────────────────────────────────────────────────────
+
+async function loadStocks() {
+  try {
+    const resp = await fetch(`${API}/stocks`);
+    allStocks  = await resp.json();
+    renderDropdown(allStocks);
+  } catch(e) {
+    allStocks = [];
+  }
+}
+
+function renderDropdown(stocks) {
+  const dd = document.getElementById('stock-dropdown');
+  if (!stocks.length) { dd.innerHTML = '<div style="padding:14px;color:var(--sa-fg-muted);font-size:12px">No stocks found</div>'; return; }
+  dd.innerHTML = stocks.map(s => `
+    <div class="sa-dropdown-item" data-symbol="${s.symbol}">
+      <span class="sa-dropdown-sym">${s.symbol}</span>
+      <span class="sa-dropdown-name">${s.company_name}</span>
+      <span class="sa-dropdown-sector">${s.sector || ''}</span>
+    </div>`).join('');
+  dd.querySelectorAll('.sa-dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      closeDropdown();
+      loadStock(item.dataset.symbol);
+    });
+  });
+}
+
+function openDropdown() {
+  document.getElementById('stock-dropdown').classList.add('open');
+}
+function closeDropdown() {
+  document.getElementById('stock-dropdown').classList.remove('open');
+  document.getElementById('stock-search').blur();
+}
+
+const searchInput = document.getElementById('stock-search');
+searchInput.addEventListener('focus', openDropdown);
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toUpperCase().trim();
+  const filtered = allStocks.filter(s =>
+    s.symbol.includes(q) || s.company_name.toUpperCase().includes(q)
+  );
+  renderDropdown(filtered);
+  openDropdown();
+});
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const q = searchInput.value.trim().toUpperCase();
+    if (q) { closeDropdown(); loadStock(q); }
+  }
+  if (e.key === 'Escape') closeDropdown();
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sa-search-wrap')) closeDropdown();
+});
+
+// ── TIMEFRAME TABS ────────────────────────────────────────────────────────
+
+document.querySelectorAll('.sa-tabs .sa-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sa-tabs .sa-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
+document.querySelectorAll('.sa-pivot-toggle').forEach(group => {
+  group.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      group.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+});
+
+// ── SHARE ─────────────────────────────────────────────────────────────────
+
+function shareStock() {
+  if (navigator.share) {
+    navigator.share({ title: currentSymbol + ' Analysis · annaPaisa', url: window.location.href })
+      .catch(() => {});
+  } else {
+    navigator.clipboard.writeText(window.location.href).then(() => alert('Link copied!'));
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+
+(async () => {
+  await loadStocks();
+  const params = new URLSearchParams(window.location.search);
+  const ticker = params.get('ticker') || (allStocks[0] && allStocks[0].symbol) || 'RELIANCE';
+  await loadStock(ticker);
+
+  // Back navigation
+  const fromUrl = params.get('from');
+  if (fromUrl) {
+    try {
+      const fromDomain = new URL(fromUrl).hostname;
+      const btn = document.getElementById('sa-back-btn');
+      document.getElementById('sa-back-label').textContent = '← ' + fromDomain;
+      btn.href = fromUrl;
+      btn.classList.add('visible');
+    } catch(e) {}
+  }
+})();
+</script>
+</body>
+</html>
